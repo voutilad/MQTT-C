@@ -1,6 +1,6 @@
 UNAME = $(shell uname -o)
 
-CC = gcc
+CC ?= gcc
 CFLAGS = -Wextra -Wall -std=gnu99 -Iinclude -Wno-unused-parameter -Wno-unused-variable -Wno-duplicate-decl-specifier
 
 ifeq ($(UNAME), Msys)
@@ -30,7 +30,7 @@ $(BINDIR):
 	mkdir -p $(BINDIR)
 
 $(MQTT_C_UNITTESTS): tests.c $(MQTT_C_SOURCES)
-	$(CC) $(CFLAGS) $^ -lcmocka $(MSFLAGS) -o $@
+	$(CC) $(CFLAGS) `pkg-config --cflags cmocka` $^ `pkg-config --libs cmocka` $(MSFLAGS) -o $@
 
 clean:
 	rm -rf $(BINDIR)
