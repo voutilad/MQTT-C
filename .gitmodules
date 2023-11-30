@@ -1,0 +1,3 @@
+[submodule "dumb-ws"]
+	path = dumb-ws
+	url = https://github.com/voutilad/dumb-ws
