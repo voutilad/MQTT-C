@@ -8,11 +8,17 @@ MSFLAGS = -lws2_32
 endif
 
 MQTT_C_SOURCES = src/mqtt.c src/mqtt_pal.c
-MQTT_C_EXAMPLES = bin/simple_publisher bin/simple_subscriber bin/reconnect_subscriber bin/bio_publisher bin/openssl_publisher
+MQTT_C_EXAMPLES = bin/simple_publisher bin/simple_subscriber bin/reconnect_subscriber bin/bio_publisher bin/openssl_publisher bin/dws
 MQTT_C_UNITTESTS = bin/tests
 BINDIR = bin
 
 all: $(BINDIR) $(MQTT_C_UNITTESTS) $(MQTT_C_EXAMPLES)
+
+dumb-ws/dws.o: dumb-ws/dws.c
+	$(CC) $(CLFAGS) `pkg-config --cflags libtls` $^ -c -o $@
+
+bin/dws: dumb-ws/dws.o examples/dws.c src/mqtt.c src/mqtt_pal_dws.c
+	$(CC) $(CFLAGS) -DMQTT_USE_CUSTOM_SOCKET_HANDLE -DMQTTC_PAL_FILE="mqtt_dws.h" -I./dumb-ws $^ -lpthread $(MSFLAGS) `pkg-config --libs libtls` -o $@
 
 bin/simple_%: examples/simple_%.c $(MQTT_C_SOURCES)
 	$(CC) $(CFLAGS) $^ -lpthread $(MSFLAGS) -o $@
