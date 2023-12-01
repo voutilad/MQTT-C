@@ -24,13 +24,16 @@ SOFTWARE.
 
 #include <dws.h>
 #include <mqtt_dws.h>
+#include <stdio.h>
 
 ssize_t mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void *buf, size_t bufsz,
                          int flags) {
     ssize_t sz = 0;
     struct websocket *ws = (struct websocket *)fd;
 
-    sz = dumb_send(ws, (void*)buf, bufsz);
+    printf("%s: bufsz = %lu\n", __func__, bufsz);
+    sz = dumb_send(ws, buf, bufsz);
+    printf("%s: sz = %zu\n", __func__, bufsz);
 
     return sz;
 }
@@ -40,6 +43,8 @@ ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void *buf, size_t bufsz, int
     struct websocket *ws = (struct websocket *)fd;
 
     sz = dumb_recv(ws, buf, bufsz);
+    if (sz == DWS_WANT_POLL)
+        return 0;
 
     return sz;
 }

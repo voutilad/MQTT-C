@@ -23,10 +23,21 @@ SOFTWARE.
 */
 #include <stdio.h>
 #include <stdlib.h>
+#include <strings.h>
+#include <unistd.h>
 #include <err.h>
 
 #include "dws.h"
 #include <mqtt.h>
+
+static const char *msg = "Test from websocket wrapper.\n";
+
+void callback(void **unused, struct mqtt_response_publish *published)
+{
+    char buf[4096] = { 0 };
+    memcpy(buf, published->topic_name, published->topic_name_size);
+    printf("%s: called, topic_name=%s, msg=%s\n", __func__, buf, (const char*) published->application_message);
+}
 
 int main(int argc, const char *argv[])
 {
@@ -58,15 +69,32 @@ int main(int argc, const char *argv[])
     uint8_t recvbuf[4096];
 
     mqtt_pal_socket_handle handle = &ws;
-    mqtt_init(&client, handle, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), NULL);
+    mqtt_init(&client, handle, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), callback);
     result = mqtt_connect(&client, "dws-client", NULL, NULL, 0, NULL, NULL, MQTT_CONNECT_CLEAN_SESSION, 400);
     if (result != MQTT_OK)
         errx(1, "mqtt_connect: %s", mqtt_error_str(result));
 
-    if (client.error != MQTT_OK)
-        errx(1, "error: %s", mqtt_error_str(client.error));
-
     printf("Client connected\n");
+
+    mqtt_subscribe(&client, "datetime", 0);
+
+    printf("syncing\n");
+    result = mqtt_sync(&client);
+    if (result != MQTT_OK)
+        errx(1, "sync: %s", mqtt_error_str(result));
+    printf("subscribed?\n");
+
+    result = mqtt_publish(&client, "datetime", msg, strlen(msg), MQTT_PUBLISH_QOS_0);
+    if (result != MQTT_OK)
+        errx(1, "mqtt_publish: %s", mqtt_error_str(result));
+
+    printf("Published message.\n");
+
+    for (int i=0; i < 100000; i++) {
+        mqtt_sync(&client);
+        printf("sync...\n");
+        usleep(100000U);
+    }
 
     rv = dumb_close(&ws);
     if (rv != 0)
