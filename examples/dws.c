@@ -34,7 +34,7 @@ SOFTWARE.
 static const char *MSG = "Test from websocket wrapper!";
 static const char *WILL_MSG = "Bye bye bye!";
 static const char *HOST = "test.mosquitto.org";
-static const char *PORT = "8080";
+static uint16_t PORT = 8080;
 
 static const char *SUB = "datetime/#";
 static char TOPIC[128];
@@ -93,9 +93,9 @@ int main(int argc, const char *argv[])
     rv = dumb_connect(&ws, HOST, PORT);
     if (rv != 0)
         errx(1, "dumb_connect: rv=%d", rv);
-    printf("Connected to %s:%s\n", HOST, PORT);
+    printf("Connected to %s:%d\n", HOST, PORT);
 
-    rv = dumb_handshake(&ws, HOST, 7114, "/mqtt", "mqttv3.1");
+    rv = dumb_handshake(&ws, "/mqtt", "mqttv3.1");
     if (rv != 0)
         errx(1, "dumb_handshake: rv=%d", rv);
     printf("Completed Websocket handshake\n");
