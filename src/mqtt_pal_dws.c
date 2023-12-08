@@ -23,6 +23,7 @@ SOFTWARE.
 */
 
 #include <dws.h>
+#include <mqtt.h>
 #include <mqtt_dws.h>
 #include <stdio.h>
 
@@ -31,10 +32,9 @@ ssize_t mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void *buf, size_t bufs
     ssize_t sz = 0;
     struct websocket *ws = (struct websocket *)fd;
 
-    printf("%s: bufsz = %lu\n", __func__, bufsz);
     sz = dumb_send(ws, buf, bufsz);
-    printf("%s: sz = %zu\n", __func__, bufsz);
-
+    if (sz == -1)
+        return MQTT_ERROR_SOCKET_ERROR;
     return sz;
 }
 
@@ -45,6 +45,13 @@ ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void *buf, size_t bufsz, int
     sz = dumb_recv(ws, buf, bufsz);
     if (sz == DWS_WANT_POLL)
         return 0;
+    else if (sz == DWS_SHUTDOWN)
+        return MQTT_ERROR_CONNECTION_CLOSED;
+    else if (sz == DWS_WANT_PONG) {
+        // Ugh. This is silly.
+        return MQTT_ERROR_SOCKET_ERROR;
+    } else if (sz == -1)
+        return MQTT_ERROR_SOCKET_ERROR;
 
     return sz;
 }
