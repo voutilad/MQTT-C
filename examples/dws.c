@@ -25,13 +25,18 @@ SOFTWARE.
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
+#include <signal.h>
+#include <time.h>
 #include <err.h>
 
 #include "dws.h"
 #include <mqtt.h>
 
+#define MODE_PUB 1
+#define MODE_SUB 2
 
-static const char *MSG = "Test from websocket wrapper!";
+static char MSG[128];
+static const char *MSG_PATTERN = "Test from websocket wrapper! tick=%u";
 static const char *WILL_MSG = "Bye bye bye!";
 static const char *HOST = "test.mosquitto.org";
 static uint16_t PORT = 8080;
@@ -47,6 +52,15 @@ static const char *CLIENT_PATTERN = "dws-%u";
 static uint8_t BUF_SEND[4096];
 static uint8_t BUF_RECV[4096];
 
+static int KEEP_GOING = 1;
+
+void sighandler(int sig)
+{
+    if (KEEP_GOING) {
+        printf("\b\bDisconnecting...please wait!\n");
+        KEEP_GOING = 0;
+    }
+}
 
 void callback(void **unused, struct mqtt_response_publish *published)
 {
@@ -57,15 +71,13 @@ void callback(void **unused, struct mqtt_response_publish *published)
            (const char*) published->application_message);
 }
 
-#define MODE_PUB 1
-#define MODE_SUB 2
-
 int main(int argc, const char *argv[])
 {
     int rv = 0, client_id, mode = 0;
+    unsigned int tick = 0;
     enum MQTTErrors result;
-    struct websocket ws = { 0 };
     struct mqtt_client client;
+    struct websocket ws = { 0 };
 
     if (argc > 1 && argv[1][0] == 'p')
         mode = MODE_PUB;
@@ -107,7 +119,7 @@ int main(int argc, const char *argv[])
     mqtt_init(&client, handle, BUF_SEND, sizeof(BUF_SEND), BUF_RECV,
 			  sizeof(BUF_RECV), callback);
     result = mqtt_connect(&client, CLIENT, WILL, WILL_MSG, strlen(WILL_MSG),
-                          NULL, NULL, MQTT_CONNECT_CLEAN_SESSION, 10);
+                          NULL, NULL, MQTT_CONNECT_CLEAN_SESSION, 5);
 	if (result != MQTT_OK)
         errx(1, "mqtt_connect: %s", mqtt_error_str(client.error));
     printf("Client connected\n");
@@ -120,8 +132,15 @@ int main(int argc, const char *argv[])
         printf("Subscribed to '%s'\n", SUB);
     }
 
-    for (;;) {
-        if (mode == MODE_PUB) {
+    // Prepare our loop controls.
+    signal(SIGINT, sighandler);
+
+    // Pump it.
+    while (KEEP_GOING) {
+        // Produce every 5 "ticks" so we don't spam the test server :-)
+        if (mode == MODE_PUB && (tick++) % 5 == 0) {
+            memset(MSG, 0, sizeof(MSG));
+            snprintf(MSG, sizeof(MSG), MSG_PATTERN, tick);
             result = mqtt_publish(&client, TOPIC, MSG, strlen(MSG),
 							  MQTT_PUBLISH_QOS_0);
             if (result != MQTT_OK)
@@ -134,14 +153,17 @@ int main(int argc, const char *argv[])
             printf("error: %s\n", mqtt_error_str(client.error));
             break;
         }
-        usleep(1000000U);
+
+        // We use usleep(3) here because for some reason macOS's nanosleep(2)
+        // is a total fraud and can sleep wayyyy too long.
+        usleep(200 * 1000); // 200ms
     }
 
     rv = dumb_close(&ws);
     if (rv != 0)
         errx(1, "dumb_close");
 
-    printf("Disconnected\n");
+    printf("Disconnected. Bye!\n");
 
     return 0;
 }
